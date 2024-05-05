@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-import folium
 import requests
 import configurations
 import logging

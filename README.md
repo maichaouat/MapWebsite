@@ -14,7 +14,7 @@ This project is a web application that retrieves images from the Mapillary API b
 
 1. Clone this repository to your local machine.
 2. Install the required dependencies using `pip install -r requirements.txt`.
-3. Run the Flask application using `python app.py`.
+3. Run the Flask application using `python main.py`.
 4. Access the application in your web browser at `http://localhost:5000`.
 
 ## Usage
