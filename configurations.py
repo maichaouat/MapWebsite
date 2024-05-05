@@ -1,3 +1,4 @@
+import requests
 
 
 # Define the access token and bounding box
@@ -6,3 +7,7 @@ bbox = "34.768,32.068,34.770,32.070"  # Provided bounding box
 
 # Define the API URL
 api_url = f"https://graph.mapillary.com/images?access_token={access_token}&fields=id&bbox={bbox}"
+
+def mapillary_image_url(image_id):
+    return f"https://www.mapillary.com/app/?focus=photo&pKey={image_id}"
+

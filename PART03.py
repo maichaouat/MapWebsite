@@ -30,7 +30,7 @@ if response.status_code == 200:
     for image in data['data']:
         # Construct the URL for viewing the image on Mapillary
         image_id = image['id']
-        image_url = f"https://graph.mapillary.com/{image_id}?access_token={access_token}&fields=id,computed_geometry,detections.value"
+        image_url = f"https://graph.mapillary.com/{image_id}?access_token={access_token}&fields=id,computed_geometry"
         response_image = requests.get(image_url)
 
         if response_image.status_code == 200:

@@ -3,6 +3,7 @@ import folium
 import requests
 import configurations
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,29 +28,34 @@ def query_mapillary(bbox):
         # Extract location and image IDs from the response
         points = []
         limit = 0
-        # Add markers for each image ID
-        for image in data['data']:
-            if limit >=10:
-                break
-            limit+=1
-            image_id = image['id']
-            image_url = f"https://graph.mapillary.com/{image_id}?access_token={configurations.access_token}&fields=id,computed_geometry,detections.value"
-            response_image = requests.get(image_url)
 
-            if response_image.status_code == 200:
-                response_image = response_image.json()
-                # Extract location
-                if response_image['computed_geometry']['coordinates'] is not None:
-                    location = response_image['computed_geometry']['coordinates']
-                    points.append({'location': [location[1], location[0]], 'image_id': image_id, 'image_url':image_url})
-                    # logger success message
-                    logger.info(f"Added point for image ID: {image_id} in location {location}")
-                else:
-                    logger.error(f"Image ID: {image_id} has no geometry")
-
+        with ThreadPoolExecutor() as executor:
+            for image in data['data']:
+                image_result = executor.submit(fetch_image, image).result()
+                points.append(image_result)
+                limit += 1
+                if limit >= 20:
+                    break
         return points
     else:
         logger.error(f"Request failed with status code {response.status_code}")
+        return None
+
+
+def fetch_image(image):
+    image_id = image['id']
+    image_url = f"https://graph.mapillary.com/{image_id}?access_token={configurations.access_token}&fields=id,computed_geometry,detections.value"
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        response_json = response.json()
+        if 'computed_geometry' in response_json:
+            location = response_json['computed_geometry']['coordinates']
+            return {'location': [location[1], location[0]], 'image_id': image_id}
+        else:
+            logger.error(f"Image ID: {image_id} has no geometry")
+            return None
+    else:
+        logger.error(f"Failed to fetch image data for ID: {image_id}")
         return None
 
 @app.route('/moved', methods=['POST'])

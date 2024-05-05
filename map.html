@@ -52,51 +52,48 @@
         tile_layer_7b0410578f6b1454ada7e90f4fe63483.addTo(map_49e2affa560a569bf99542693eb79baf);
 
         // Function to handle map movement
+        var debounceTimer;
+
         function handleMapMove(e) {
-            var bbox = map_49e2affa560a569bf99542693eb79baf.getBounds().toBBoxString();
-            console.log("Map moved, bbox:", bbox);
+            // Clear previous debounce timer
+            clearTimeout(debounceTimer);
 
-            // Update URL with bbox parameters
-            var newUrl = window.location.pathname + '?bbox=' + bbox;
-            window.history.pushState({path: newUrl}, '', newUrl);
+            // Set timeout to wait for user inactivity
+            debounceTimer = setTimeout(function() {
+                var bbox = map_49e2affa560a569bf99542693eb79baf.getBounds().toBBoxString();
+                console.log("Map moved, bbox:", bbox);
 
-            // Send AJAX request to Flask server
-            $.ajax({
-                type: 'POST',
-                url: '/moved',
-                contentType: 'application/json',
-                data: JSON.stringify({bbox: bbox}),
-                success: function(response) {
-                    console.log("Server response:", response);
-                    // Add markers to the map based on the response
-                    response.forEach(function(point) {
-                        L.marker(point.location).addTo(map_49e2affa560a569bf99542693eb79baf)
-                            .bindPopup("<a href='" + point.image_url + "' target='_blank'>View Image</a>");
-                    });
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error:", error);
-                }
-            });
+                // Update URL with bbox parameters
+                var newUrl = window.location.pathname + '?bbox=' + bbox;
+                window.history.pushState({path: newUrl}, '', newUrl);
+
+                // Send AJAX request to Flask server
+                $.ajax({
+                    type: 'POST',
+                    url: '/moved',
+                    contentType: 'application/json',
+                    data: JSON.stringify({bbox: bbox}),
+                    success: function(response) {
+                        console.log("Server response:", response);
+                        // Add markers to the map based on the response
+                        response.forEach(function(point) {
+                            var marker = L.marker(point.location).addTo(map_49e2affa560a569bf99542693eb79baf);
+                            // Add onclick behavior to open image URL
+                            marker.on('click', function() {
+                                window.open(`https://www.mapillary.com/app/?focus=photo&pKey=${point.image_id}`, '_blank');
+                            });
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error:", error);
+                    }
+                });
+            }, 1000); // Adjust timeout duration as needed (e.g., 500 milliseconds)
         }
-
 
         // Listen for map move events
         map_49e2affa560a569bf99542693eb79baf.on('moveend', handleMapMove);
 
-        // Check for URL parameters on page load
-        window.onload = function() {
-            var urlParams = new URLSearchParams(window.location.search);
-            var bbox = urlParams.get('bbox');
-            if (bbox) {
-                // Move the map to the bounding box specified in the URL parameters
-                var bboxArray = bbox.split(',');
-                var southWest = L.latLng(parseFloat(bboxArray[1]), parseFloat(bboxArray[0]));
-                var northEast = L.latLng(parseFloat(bboxArray[3]), parseFloat(bboxArray[2]));
-                var bounds = L.latLngBounds(southWest, northEast);
-                map_49e2affa560a569bf99542693eb79baf.fitBounds(bounds);
-            }
-        };
     </script>
 </body>
 </html>
