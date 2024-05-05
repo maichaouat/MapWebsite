@@ -51,6 +51,14 @@
         );
         tile_layer_7b0410578f6b1454ada7e90f4fe63483.addTo(map_49e2affa560a569bf99542693eb79baf);
 
+        //Add points from part 3 bbox
+        // Add markers for the points received from Flask
+        {% for point in points %}
+            var marker = L.marker(point.location).addTo(map_49e2affa560a569bf99542693eb79baf);
+            marker.on('click', function(event) {
+            handleMarkerClick(event, point.location, point.image_id);
+        {% endfor %}
+
         // Function to handle map movement
         var debounceTimer;
 
@@ -87,7 +95,7 @@
                         console.error("Error:", error);
                     }
                 });
-            }, 5); // Adjust timeout duration as needed (e.g., 500 milliseconds)
+            }, 10); // Adjust timeout duration as needed (e.g., 500 milliseconds)
         }
 
         // Listen for map move events
