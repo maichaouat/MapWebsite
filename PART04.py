@@ -4,18 +4,28 @@ import requests
 import configurations
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from flask_caching import Cache
+from flask import render_template
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
+# Initialize Flask-Caching
+cache = Cache(config={'CACHE_TYPE': 'SimpleCache'})
+cache_ids = Cache(config={'CACHE_TYPE': 'SimpleCache'})
+
 app = Flask(__name__)
+cache.init_app(app)
+cache_ids.init_app(app)
 
 # Mapillary API requestor function
-def query_mapillary(bbox):
+def query_mapillary(bbox=None, max_retrive =10):
     # Construct the API endpoint URL
-    api_url = f"https://graph.mapillary.com/images?access_token={configurations.access_token}&fields=id&bbox={bbox}"
+    if bbox:
+        api_url = configurations.mapilary_bbox_url(bbox)
+    else: #Get initial bbox (as default)
+        api_url = configurations.mapilary_bbox_url()
 
     # Make the API request
     response = requests.get(api_url)
@@ -31,10 +41,10 @@ def query_mapillary(bbox):
 
         with ThreadPoolExecutor() as executor:
             for image in data['data']:
-                image_result = executor.submit(fetch_image, image).result()
+                image_result = executor.submit(fetch_image, image['id']).result()
                 points.append(image_result)
                 limit += 1
-                if limit >= 2:
+                if limit >= max_retrive:
                     break
         return points
     else:
@@ -42,9 +52,9 @@ def query_mapillary(bbox):
         return None
 
 
-def fetch_image(image):
-    image_id = image['id']
-    image_url = f"https://graph.mapillary.com/{image_id}?access_token={configurations.access_token}&fields=id,computed_geometry,detections.value"
+@cache.memoize(timeout=600)
+def fetch_image(image_id):
+    image_url = configurations.mapilary_image_with_location(image_id)
     response = requests.get(image_url)
     if response.status_code == 200:
         response_json = response.json()
@@ -70,6 +80,7 @@ def map_moved():
 
 
 @app.route('/get_image_data', methods=['GET'])
+@cache_ids.memoize(timeout=600)
 def get_image_data():
     # Get the Image ID from the request parameters
     image_id = request.args.get('image_id')
@@ -99,10 +110,9 @@ def get_image_data():
 
 @app.route('/')
 def index():
-    # Return the content of the map.html file
-    with open('map.html', 'r') as f:
-        map_html = f.read()
-    return map_html
+    points = query_mapillary(max_retrive=100)  # Assuming you have a function to fetch points data
+    logger.info("Succeeded to load the images from the start bbox")
+    return render_template('map.html', points=points)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -6,8 +6,8 @@
         L_NO_TOUCH = false;
         L_DISABLE_3D = false;
     </script>
-    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
-    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <style>html, body {width: 100%; height: 100%; margin: 0; padding: 0;}</style>
+    <style>#map {position: absolute; top: 0; bottom: 0; right: 0; left: 0;}</style>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -22,16 +22,16 @@
     <style>
         #map_49e2affa560a569bf99542693eb79baf {
             position: relative;
-            width: 100.0%;
-            height: 100.0%;
-            left: 0.0%;
-            top: 0.0%;
+            width: 100%;
+            height: 100%;
+            left: 0;
+            top: 0;
         }
         .leaflet-container { font-size: 1rem; }
     </style>
 </head>
 <body>
-    <div class="folium-map" id="map_49e2affa560a569bf99542693eb79baf" ></div>
+    <div class="folium-map" id="map_49e2affa560a569bf99542693eb79baf"></div>
     <script>
         var map_49e2affa560a569bf99542693eb79baf = L.map(
             "map_49e2affa560a569bf99542693eb79baf",
@@ -51,46 +51,103 @@
         );
         tile_layer_7b0410578f6b1454ada7e90f4fe63483.addTo(map_49e2affa560a569bf99542693eb79baf);
 
-        // Function to handle map movement
-        function handleMapMove(e) {
-            var bbox = map_49e2affa560a569bf99542693eb79baf.getBounds().toBBoxString();
-            console.log("Map moved, bbox:", bbox);
-
-            // Update URL with bbox parameters
-            var newUrl = window.location.pathname + '?bbox=' + bbox;
-            window.history.pushState({path: newUrl}, '', newUrl);
-
-            // Send AJAX request to Flask server
-            $.ajax({
-                type: 'POST',
-                url: '/moved',
-                contentType: 'application/json',
-                data: JSON.stringify({bbox: bbox}),
-                success: function(response) {
-                    console.log("Server response:", response);
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error:", error);
-                }
+        // Add markers for the points received from Flask
+        {% for point in points %}
+            var marker = L.marker([{{ point.location[0] }}, {{ point.location[1] }}]).addTo(map_49e2affa560a569bf99542693eb79baf);
+            marker.on('click', function(event) {
+                handleMarkerClick(event, [{{ point.location[0] }}, {{ point.location[1] }}], '{{ point.image_id }}');
             });
+        {% endfor %}
+
+        // Function to handle map movement
+        var debounceTimer;
+
+        function handleMapMove(e) {
+            // Clear previous debounce timer
+            clearTimeout(debounceTimer);
+
+            // Set timeout to wait for user inactivity
+            debounceTimer = setTimeout(function() {
+                var bbox = map_49e2affa560a569bf99542693eb79baf.getBounds().toBBoxString();
+                console.log("Map moved, bbox:", bbox);
+
+                // Update URL with bbox parameters
+                var newUrl = window.location.pathname + '?bbox=' + bbox;
+                window.history.pushState({path: newUrl}, '', newUrl);
+
+                // Send AJAX request to Flask server
+                $.ajax({
+                    type: 'POST',
+                    url: '/moved',
+                    contentType: 'application/json',
+                    data: JSON.stringify({bbox: bbox}),
+                    success: function(response) {
+                        console.log("Server response:", response);
+                        // Add markers to the map based on the response
+                        response.forEach(function(point) {
+                            var marker = L.marker([point.location[0], point.location[1]]).addTo(map_49e2affa560a569bf99542693eb79baf);
+                            marker.on('click', function(event) {
+                                handleMarkerClick(event, [point.location[0], point.location[1]], point.image_id);
+                            });
+                        });
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error:", error);
+                    }
+                });
+            }, 10); // Adjust timeout duration as needed (e.g., 500 milliseconds)
         }
 
         // Listen for map move events
         map_49e2affa560a569bf99542693eb79baf.on('moveend', handleMapMove);
 
-        // Check for URL parameters on page load
-        window.onload = function() {
-            var urlParams = new URLSearchParams(window.location.search);
-            var bbox = urlParams.get('bbox');
-            if (bbox) {
-                // Move the map to the bounding box specified in the URL parameters
-                var bboxArray = bbox.split(',');
-                var southWest = L.latLng(parseFloat(bboxArray[1]), parseFloat(bboxArray[0]));
-                var northEast = L.latLng(parseFloat(bboxArray[3]), parseFloat(bboxArray[2]));
-                var bounds = L.latLngBounds(southWest, northEast);
-                map_49e2affa560a569bf99542693eb79baf.fitBounds(bounds);
-            }
-        };
-    </script>
+        // Define a function to handle marker click events
+        function handleMarkerClick(event, location, imageId) {
+            console.log("On click marker");
+            // Call the image requestor function with the Image ID
+            getImageData(imageId, location);
+        }
+
+        // Function to fetch image data using the Image ID
+        function getImageData(imageId, location) {
+            // Make an AJAX request to fetch image data and URL based on the Image ID
+            $.ajax({
+                type: 'GET',
+                url: '/get_image_data', // Assuming this is the endpoint to fetch image data
+                data: { image_id: imageId }, // Pass the Image ID as a parameter
+                success: function(response) {
+                    // Once data is received, display it to the user
+                    displayImageData(response, location);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error fetching image data:", error);
+                }
+            });
+        }
+
+       // Function to display image data to the user
+        function displayImageData(imageData, location) {
+            console.log("display data");
+            // Extract relevant information from imageData object
+            var imageUrl = imageData.url;
+            var imageMetadata = imageData.metadata;
+
+            // Create a string to hold the metadata
+            var metadataString = JSON.stringify(imageMetadata, null, 2); // Beautify JSON string
+
+            // Create HTML content for the popup
+            var popupContent = "<div style='max-height: 200px; overflow: auto; padding: 5px;'>" +
+                               "<p><strong>Metadata:</strong></p>" +
+                               "<pre>" + metadataString + "</pre>" +
+                               "<p><strong>Image:</strong><br><a href='" + imageUrl + "' target='_blank'>" + imageUrl + "</a></p>" +
+                               "</div>";
+
+            // Create a popup and attach it to the marker's location
+            L.popup()
+                .setLatLng(location)
+                .setContent(popupContent)
+                .openOn(map_49e2affa560a569bf99542693eb79baf); // Assuming map variable is accessible
+        }
+   </script>
 </body>
 </html>
