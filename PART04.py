@@ -34,7 +34,7 @@ def query_mapillary(bbox):
                 image_result = executor.submit(fetch_image, image).result()
                 points.append(image_result)
                 limit += 1
-                if limit >= 20:
+                if limit >= 2:
                     break
         return points
     else:
@@ -67,6 +67,35 @@ def map_moved():
         return jsonify(points)
     else:
         return jsonify([])
+
+
+@app.route('/get_image_data', methods=['GET'])
+def get_image_data():
+    # Get the Image ID from the request parameters
+    image_id = request.args.get('image_id')
+
+    # Make a request to fetch image parameters
+    response = requests.get(configurations.mapilary_image_parameters(image_id))
+
+    if response.status_code == 200:
+        # Extract image parameters from the response
+        image_params = response.json()
+
+
+        # Define metadata and insert all data there
+        metadata = {
+            'image_id': image_id,
+            'metadata': image_params,
+            'url' : configurations.mapillary_image_url(image_id),
+            'timestamp': image_params.get('timestamp', None),  # Example, extract timestamp if available
+            # Add more metadata fields as needed
+        }
+
+        # Return metadata as JSON response
+        return jsonify(metadata)
+    else:
+        # If image not found, return error response
+        return jsonify({'error': 'Image not found'}), response.status_code
 
 @app.route('/')
 def index():

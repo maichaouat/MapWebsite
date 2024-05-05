@@ -10,3 +10,6 @@ api_url = f"https://graph.mapillary.com/images?access_token={access_token}&field
 def mapillary_image_url(image_id):
     return f"https://www.mapillary.com/app/?focus=photo&pKey={image_id}"
 
+def mapilary_image_parameters(image_id):
+    return f"https://graph.mapillary.com/{image_id}?access_token={access_token}&fields=id,computed_geometry"
+

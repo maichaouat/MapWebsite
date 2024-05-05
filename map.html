@@ -78,9 +78,8 @@
                         // Add markers to the map based on the response
                         response.forEach(function(point) {
                             var marker = L.marker(point.location).addTo(map_49e2affa560a569bf99542693eb79baf);
-                            // Add onclick behavior to open image URL
-                            marker.on('click', function() {
-                                window.open(`https://www.mapillary.com/app/?focus=photo&pKey=${point.image_id}`, '_blank');
+                            marker.on('click', function(event) {
+                                handleMarkerClick(event, point.location, point.image_id);
                             });
                         });
                     },
@@ -88,12 +87,63 @@
                         console.error("Error:", error);
                     }
                 });
-            }, 1000); // Adjust timeout duration as needed (e.g., 500 milliseconds)
+            }, 5); // Adjust timeout duration as needed (e.g., 500 milliseconds)
         }
 
         // Listen for map move events
         map_49e2affa560a569bf99542693eb79baf.on('moveend', handleMapMove);
 
-    </script>
+        // Define a function to handle marker click events
+        function handleMarkerClick(event, location, imageId) {
+            console.log("On click marker");
+            // Call the image requestor function with the Image ID
+            getImageData(imageId, location);
+        }
+
+        // Function to fetch image data using the Image ID
+        function getImageData(imageId, location) {
+            // Make an AJAX request to fetch image data and URL based on the Image ID
+            $.ajax({
+                type: 'GET',
+                url: '/get_image_data', // Assuming this is the endpoint to fetch image data
+                data: { image_id: imageId }, // Pass the Image ID as a parameter
+                success: function(response) {
+                    // Once data is received, display it to the user
+                    displayImageData(response, location);
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error fetching image data:", error);
+                }
+            });
+        }
+
+       // Function to display image data to the user
+        function displayImageData(imageData, location) {
+            console.log("display data");
+            // Extract relevant information from imageData object
+            var imageUrl = imageData.url;
+            var imageMetadata = imageData.metadata;
+
+            // Create a string to hold the metadata
+            var metadataString = JSON.stringify(imageMetadata, null, 2); // Beautify JSON string
+
+            // Create HTML content for the popup
+            var popupContent = "<div style='max-height: 200px; overflow: auto; padding: 5px;'>" +
+                               "<p><strong>Metadata:</strong></p>" +
+                               "<pre>" + metadataString + "</pre>" +
+                               "<p><strong>Image:</strong><br><a href='" + imageUrl + "' target='_blank'>" + imageUrl + "</a></p>" +
+                               "</div>";
+
+            // Create a popup and attach it to the marker's location
+            L.popup()
+                .setLatLng(location)
+                .setContent(popupContent)
+                .openOn(map_49e2affa560a569bf99542693eb79baf); // Assuming map variable is accessible
+        }
+
+
+
+
+   </script>
 </body>
 </html>
