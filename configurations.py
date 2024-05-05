@@ -1,4 +1,3 @@
-import requests
 
 
 # Define the access token and bounding box
