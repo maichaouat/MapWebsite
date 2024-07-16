@@ -144,9 +144,10 @@
 
        // Function to display image data to the user
         function displayImageData(imageData, location) {
-            console.log("display data");
+            
             // Extract relevant information from imageData object
             var imageUrl = imageData.url;
+            
             var imageMetadata = imageData.metadata;
 
             // Create a string to hold the metadata
@@ -154,10 +155,11 @@
 
             // Create HTML content for the popup
             var popupContent = "<div style='max-height: 200px; overflow: auto; padding: 5px;'>" +
-                               "<p><strong>Metadata:</strong></p>" +
-                               "<pre>" + metadataString + "</pre>" +
-                               "<p><strong>Image:</strong><br><a href='" + imageUrl + "' target='_blank'>" + imageUrl + "</a></p>" +
-                               "</div>";
+                   "<p><strong>Metadata:</strong></p>" +
+                   "<pre>" + metadataString + "</pre>" +
+                   "<p><strong>Image:</strong><br><a href='" + imageUrl + "' target='_blank'>" + imageUrl + "</a></p>" +
+                   "</div>";
+
 
             // Create a popup and attach it to the marker's location
             L.popup()
