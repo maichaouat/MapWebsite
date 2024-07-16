@@ -3,24 +3,23 @@ import requests
 import configurations
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from flask_caching import Cache
 from flask import render_template
+from extensions import cache
+from constans import ONE_WEEK, ONE_DAY
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# Initialize Flask-Caching with FileSystemCache
-cache = Cache(config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'cache_data'})
-
-# Initialize Flask-Caching for cache_ids as well
-cache_ids = Cache(config={'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'cache_ids_data'})
-
 # Initialize Flask-Caching
 app = Flask(__name__)
+
+# Configure Redis as caching backend
+app.config['CACHE_TYPE'] = 'redis'
+app.config['CACHE_REDIS_HOST'] = 'localhost'  # Redis server hostname (or use 'localhost')
+app.config['CACHE_REDIS_PORT'] = 6379  # Redis server port
+app.config['CACHE_REDIS_DB'] = 0  # Redis database index
 cache.init_app(app)
-cache_ids.init_app(app)
 
 # Mapillary API requestor function
 def query_mapillary(bbox=None, max_retrive =10):
@@ -37,7 +36,7 @@ def query_mapillary(bbox=None, max_retrive =10):
     if response.status_code == 200:
         # Parse the JSON response
         images_in_bbox = response.json()
-
+      
         # Extract location and image IDs from the response
         points = []
         limit = 0
@@ -55,21 +54,37 @@ def query_mapillary(bbox=None, max_retrive =10):
         return None
 
 # Fetches image from API based on image id given
-@cache.memoize(timeout=600)
 def fetch_image(image_id):
-    image_url = configurations.mapilary_image_with_location(image_id)
-    response = requests.get(image_url)
-    if response.status_code == 200:
-        image_data = response.json()
-        if 'computed_geometry' in image_data:
-            location = image_data['computed_geometry']['coordinates']
-            return {'location': [location[1], location[0]], 'image_id': image_id}
+    cache_key = f'image_data_{image_id}'
+    cached_image_data = cache.get(cache_key)
+    
+    if cached_image_data is None:
+        image_url = configurations.mapilary_image_with_location(image_id)
+        response = requests.get(image_url)
+        
+        if response.status_code == 200:
+            image_data = response.json()
+            
+            if 'computed_geometry' in image_data:
+                location = image_data['computed_geometry']['coordinates']
+                cached_image_data = {
+                    'location': [location[1], location[0]],
+                    'image_id': image_id
+                }
+                try:
+                    cache.set(cache_key, cached_image_data, timeout=ONE_WEEK)
+                except Exception as e:
+                    logger.error(f"Failed to cache image data for ID: {image_id}\n {e}")
+                    
+                
+            else:
+                logger.error(f"Image ID: {image_id} has no geometry")
+                return None
         else:
-            logger.error(f"Image ID: {image_id} has no geometry")
+            logger.error(f"Failed to fetch image data for ID: {image_id}")
             return None
-    else:
-        logger.error(f"Failed to fetch image data for ID: {image_id}")
-        return None
+    
+    return cached_image_data
 
 # Handles map movement and retrieves images in current bbox
 @app.route('/moved', methods=['POST'])
@@ -85,31 +100,31 @@ def map_moved():
 
 # On-click method for displaying image and image data
 @app.route('/get_image_data/<image_id>', methods=['GET'])
-@cache_ids.memoize(timeout=600)
 def get_image_data(image_id):
+    cache_key = f'image_metadata_{image_id}'
+    metadata = cache.get(cache_key)
+    
+    if metadata is None:
+        response = requests.get(configurations.mapilary_image_parameters(image_id))
+        
+        if response.status_code == 200:
+            image_params = response.json()
+            
+            metadata = {
+                'image_id': image_id,
+                'metadata': image_params,
+                'url': configurations.mapillary_image_url(image_id),
+                'timestamp': image_params.get('timestamp', None)
+            }
+            try:
+                cache.set(cache_key, metadata, timeout=ONE_WEEK)
+            except Exception as e:
+                logger.error(f"Failed to cache image metadata for ID: {image_id}\n {e}")
 
-    # Make a request to fetch image parameters
-    response = requests.get(configurations.mapilary_image_parameters(image_id))
-
-    if response.status_code == 200:
-        # Extract image parameters from the response
-        image_params = response.json()
-
-
-        # Define metadata and insert all data there
-        metadata = {
-            'image_id': image_id,
-            'metadata': image_params,
-            'url' : configurations.mapillary_image_url(image_id),
-            'timestamp': image_params.get('timestamp', None),  # Example, extract timestamp if available
-            # Add more metadata fields as needed
-        }
-
-        # Return metadata as JSON response
-        return jsonify(metadata)
-    else:
-        # If image not found, return error response
-        return jsonify({'error': 'Image not found'}), response.status_code
+        else:
+            return jsonify({'error': 'Image not found'}), response.status_code
+    
+    return jsonify(metadata)
 
 # Initializing homepage - opening map
 @app.route('/')
